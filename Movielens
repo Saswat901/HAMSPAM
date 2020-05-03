@@ -1,0 +1,202 @@
+if(!require(tidyverse)) 
+  install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) 
+  install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) 
+  install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+# MovieLens 10M dataset:
+# https://grouplens.org/datasets/movielens/10m/
+# http://files.grouplens.org/datasets/movielens/ml-10m.zip
+
+dl <- tempfile()
+download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", 
+                             readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
+movies <- as.data.frame(movies) %>% 
+  mutate(movieId = as.numeric(levels(movieId))[movieId],
+         title = as.character(title),
+         genres = as.character(genres))
+
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# 'Validation' set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding")
+test_index <- createDataPartition(y = movielens$rating, 
+                                  times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Make sure userId and movieId in 'validation' set are also in 'edx' set
+validation <- temp %>% 
+  semi_join(edx, by = "movieId") %>%
+  semi_join(edx, by = "userId")
+
+# Add rows removed from 'validation' set back into 'edx' set
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+
+set.seed(1, sample.kind="Rounding")
+test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.1, list = FALSE)
+train_set <- edx[-test_index,]
+temp <- edx[test_index,]
+
+# Make sure userId and movieId in test set are also in train set
+test_set <- temp %>% 
+  semi_join(train_set, by = "movieId") %>%
+  semi_join(train_set, by = "userId")
+
+# Add rows removed from test set back into train set
+removed <- anti_join(temp, test_set)
+train_set <- rbind(train_set, removed)
+
+rm(test_index, temp, removed)
+
+str(edx)
+
+dim(edx)
+
+head(edx)
+
+edx %>% group_by(genres) %>% 
+  summarise(n=n()) %>%
+  head()
+  
+  tibble(count = str_count(edx$genres, fixed("|")), genres = edx$genres) %>% 
+  group_by(count, genres) %>%
+  summarise(n = n()) %>%
+  arrange(-count) %>% 
+  head()
+  
+  library(lubridate)
+tibble(`Initial Date` = date(as_datetime(min(edx$timestamp), origin="1970-01-01")),
+       `Final Date` = date(as_datetime(max(edx$timestamp), origin="1970-01-01"))) %>%
+  mutate(Period = duration(max(edx$timestamp)-min(edx$timestamp)))
+  
+  if(!require(ggthemes)) 
+  install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+if(!require(scales)) 
+  install.packages("scales", repos = "http://cran.us.r-project.org")
+edx %>% mutate(year = year(as_datetime(timestamp, origin="1970-01-01"))) %>%
+  ggplot(aes(x=year)) +
+    geom_histogram(color = "white") + 
+    ggtitle("Rating Distribution Per Year") +
+    xlab("Year") +
+    ylab("Number of Ratings") +
+    scale_y_continuous(labels = comma) + 
+    theme_economist()
+edx %>% mutate(date = date(as_datetime(timestamp, origin="1970-01-01"))) %>%
+  group_by(date, title) %>%
+  summarise(count = n()) %>%
+  arrange(-count) %>%
+  head(10)
+#How many ratings are in edx?  
+  edx %>% group_by(rating) %>% summarize(n=n())
+edx %>% group_by(rating) %>% 
+  summarise(count=n()) %>%
+  ggplot(aes(x=rating, y=count)) + 
+    geom_line() +
+    geom_point() +
+    scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x))) +
+    ggtitle("Rating Distribution", subtitle = "Higher ratings are prevalent.") + 
+    xlab("Rating") +
+    ylab("Count") +
+    theme_economist()
+    
+#movies
+
+edx %>% group_by(movieId) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(n)) +
+    geom_histogram(color = "white") +
+    scale_x_log10() + 
+    ggtitle("Distribution of Movies", 
+            subtitle = "The distribution is almost symetric.") +
+    xlab("Number of Ratings") +
+    ylab("Number of Movies") + 
+    theme_economist()
+    
+#Users
+edx %>% group_by(userId) %>%
+  summarise(n=n()) %>%
+  arrange(n) %>%
+  head()
+  
+ edx %>% group_by(userId) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(n)) +
+    geom_histogram(color = "white") +
+    scale_x_log10() + 
+    ggtitle("Distribution of Users", 
+            subtitle="The distribution is right skewed.") +
+    xlab("Number of Ratings") +
+    ylab("Number of Users") + 
+    scale_y_continuous(labels = comma) + 
+    theme_economist()
+#Show the heatmap of users x movies
+ users <- sample(unique(edx$userId), 100)
+edx %>% filter(userId %in% users) %>%
+  select(userId, movieId, rating) %>%
+  mutate(rating = 1) %>%
+  spread(movieId, rating) %>% 
+  select(sample(ncol(.), 100)) %>% 
+  as.matrix() %>% t(.) %>%
+  image(1:100, 1:100,. , xlab="Movies", ylab="Users")
+abline(h=0:100+0.5, v=0:100+0.5, col = "grey")
+title("User x Movie Matrix")
+
+#Modelling
+train_set <- train_set %>% select(userId, movieId, rating, title)
+test_set  <- test_set  %>% select(userId, movieId, rating, title)
+
+# Define Mean Absolute Error (MAE)
+MAE <- function(true_ratings, predicted_ratings){
+  mean(abs(true_ratings - predicted_ratings))
+}
+
+# Define Mean Squared Error (MSE)
+MSE <- function(true_ratings, predicted_ratings){
+  mean((true_ratings - predicted_ratings)^2)
+}
+
+# Define Root Mean Squared Error (RMSE)
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+#Random prediction
+
+set.seed(4321, sample.kind = "Rounding")
+
+# Create the probability of each rating
+p <- function(x, y) mean(y == x)
+rating <- seq(0.5,5,0.5)
+
+# Estimate the probability of each rating with Monte Carlo simulation
+B <- 10^3
+M <- replicate(B, {
+  s <- sample(train_set$rating, 100, replace = TRUE)
+  sapply(rating, p, y= s)
+})
+prob <- sapply(1:nrow(M), function(x) mean(M[x,]))
+
+# Predict random ratings
+y_hat_random <- sample(rating, size = nrow(test_set), 
+                       replace = TRUE, prob = prob)
+
+# Create a table with the error results
+result <- tibble(Method = "Project Goal", RMSE = 0.8649, MSE = NA, MAE = NA)
+result <- bind_rows(result, 
+                    tibble(Method = "Random prediction", 
+                           RMSE = RMSE(test_set$rating, y_hat_random),
+                           MSE  = MSE(test_set$rating, y_hat_random),
+                           MAE  = MAE(test_set$rating, y_hat_random)))
+                           
